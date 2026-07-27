@@ -867,25 +867,21 @@ bool UELTEditor::GenerateLocFilesImpl(const TArray<FString>& CSVPaths, const FSt
 				return false;
 			}
 			
-			// Clear any existing StringTable that resides in memory before creating a new one.
-			if (UStringTable* ExistingStringTableAsset = FindObject<UStringTable>(Package, *AssetName))
-			{
-				ExistingStringTableAsset->ClearFlags(RF_Public | RF_Standalone);
-#if (ENGINE_MAJOR_VERSION == 5)
-				ExistingStringTableAsset->MarkAsGarbage();
-#else
-				ExistingStringTableAsset->MarkPendingKill();
-#endif
-			}
-			
-			// Create new StringTable asset in memory. If we fail - return an error.
-			UStringTable* StringTableAsset = NewObject<UStringTable>(Package, UStringTable::StaticClass(), FName(*AssetName), (RF_Public | RF_Standalone | RF_Transactional));
+			// Reuse an existing in-memory StringTable rather than destroy + recreate: under -run=ELTCommandlet
+			// this executes during PreInit, where a loaded asset is in the disregard-for-GC set and therefore
+			// rooted — MarkAsGarbage() would fail the !IsRooted() assert. ClearSourceStrings() below makes
+			// reuse a full reset.
+			UStringTable* StringTableAsset = FindObject<UStringTable>(Package, *AssetName);
 			if (StringTableAsset == nullptr)
 			{
-				OutMessage = FString::Printf(TEXT("ERROR: Failed to create StringTable asset: %s"), *AssetName);
-				return false;
+				StringTableAsset = NewObject<UStringTable>(Package, UStringTable::StaticClass(), FName(*AssetName), (RF_Public | RF_Standalone | RF_Transactional));
+				if (StringTableAsset == nullptr)
+				{
+					OutMessage = FString::Printf(TEXT("ERROR: Failed to create StringTable asset: %s"), *AssetName);
+					return false;
+				}
+				FAssetRegistryModule::AssetCreated(StringTableAsset);
 			}
-			FAssetRegistryModule::AssetCreated(StringTableAsset);
 			Package->MarkPackageDirty();
 
 			// Setup StringTable asset with keys as source strings. We will use keys as localized strings too, so the value is the same as the key.
