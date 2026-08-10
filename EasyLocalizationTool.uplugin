@@ -34,7 +34,7 @@
 		},
 		{
 			"Name": "EasyLocalizationToolTests",
-			"Type": "DeveloperTool",
+			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
 				"Win64"
